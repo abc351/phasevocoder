@@ -1,6 +1,6 @@
 ﻿  소스.cpp
 C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(280,1): warning C4297: 'wavwriter::~wavwriter': 함수는 예외를 Throw하지 않도록 지정되었으나 예외를 Throw했습니다.
 C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(280,1): message : 소멸자 또는 비할당자는 가능하면 암시적으로 throw되지 않는 예외 사양을 사용합니다.
-C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(394,1): warning C4244: '*=': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(726,35): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'void'입니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(390,1): warning C4244: '*=': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(893,35): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'void'입니다.
   phasevocoder.vcxproj -> C:\Users\dhkim\source\repos\phasevocoder\x64\Debug\phasevocoder.exe

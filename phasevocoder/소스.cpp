@@ -48,39 +48,52 @@ class fftcalc :public fftmath {
 private:
 	int n;
 	int n2;
-	_Dcomplex* sw, * sw2;
+	_Dcomplex* sw;
+	_Dcomplex* outt;
 public:
 	fftcalc(int n) :n(n), fftmath(n) {
 		if (n & (n - 1)) throw exception("n must be power of 2");
 		n2 = n >> 1;
+		outt = (_Dcomplex*)malloc(sizeof(_Dcomplex) * n);
 	}
 	void operator()(_Dcomplex* in, _Dcomplex* out) {
-		sw2 = out;
-		for (int step = n / 2; step > 0; step /= 2) {
+		_Dcomplex* in1 = in, * out1 = outt;
+		for (int step = (n >>1); step > 1; step >>=1) {
 			for (int bias = 0; bias < step; bias++) {
-				for (int i = 0; i < n; i += 2 * step) {
+				for (int i = 0; i < n; i +=  (step<<1)) {
 					_Dcomplex& ce1 = fftmath::cexpb[i];
-					_Dcomplex& tmp2a = in[i + step + bias];
-					_Dcomplex& tmp2b = in[i + bias];
-					_Dcomplex& tmp3a = sw2[(i >> 1) + bias];
-					_Dcomplex& tmp3b = sw2[((i + n) >> 1) + bias];
+					_Dcomplex& tmp2a = in1[i + step + bias];
+					_Dcomplex& tmp2b = in1[i + bias];
+					_Dcomplex& tmp3a = out1[(i >> 1) + bias];
+					_Dcomplex& tmp3b = out1[((i + n) >> 1) + bias];
 					tmp3a._Val[0] = tmp2b._Val[0] + (ce1._Val[0] * tmp2a._Val[0] - ce1._Val[1] * tmp2a._Val[1]);
 					tmp3a._Val[1] = tmp2b._Val[1] + (ce1._Val[1] * tmp2a._Val[0] + ce1._Val[0] * tmp2a._Val[1]);
 					tmp3b._Val[0] = tmp2b._Val[0] - (ce1._Val[0] * tmp2a._Val[0] - ce1._Val[1] * tmp2a._Val[1]);
 					tmp3b._Val[1] = tmp2b._Val[1] - (ce1._Val[1] * tmp2a._Val[0] + ce1._Val[0] * tmp2a._Val[1]);
-					//_Dcomplex t = cexpb[(maxn / n) * i] * in[i + step + bias];
-					//sw2[(i >> 1) + bias] = in[i + bias] + t;
-					//sw2[((i + n) >> 1) + bias] = in[i + bias] - t;
 				}
 			}
-			sw = in;
-			in = sw2;
-			sw2 = sw;
+			sw = in1;
+			in1 = out1;
+			out1 = sw;
 		}
-		for (int i = 0; i < n; i++) out[i] = in[i];
+		for (int i = 0; i < n; i += 2) {
+			_Dcomplex& ce1 = fftmath::cexpb[i];
+			_Dcomplex& tmp2a = in1[i + 1];
+			_Dcomplex& tmp2b = in1[i];
+			_Dcomplex& tmp3a = out[(i >> 1)];
+			_Dcomplex& tmp3b = out[((i + n) >> 1)];
+			tmp3a._Val[0] = tmp2b._Val[0] + (ce1._Val[0] * tmp2a._Val[0] - ce1._Val[1] * tmp2a._Val[1]);
+			tmp3a._Val[1] = tmp2b._Val[1] + (ce1._Val[1] * tmp2a._Val[0] + ce1._Val[0] * tmp2a._Val[1]);
+			tmp3b._Val[0] = tmp2b._Val[0] - (ce1._Val[0] * tmp2a._Val[0] - ce1._Val[1] * tmp2a._Val[1]);
+			tmp3b._Val[1] = tmp2b._Val[1] - (ce1._Val[1] * tmp2a._Val[0] + ce1._Val[0] * tmp2a._Val[1]);
+		}
+		
 	}
 	int getoutsize() {
 		return n2;
+	}
+	~fftcalc() {
+		free(outt);
 	}
 };
 class doublearray {
@@ -110,14 +123,13 @@ public:
 	void create(int x, int y) {
 		this->x = x;
 		this->y = y;
-		data = (T**)malloc(sizeof(T*) * (y));
-		for (int i = 0; i < y; i++)
-			data[i] = (T*)malloc(sizeof(T) * x);
+		T* baseaddr = (T*)malloc(sizeof(T) * y * x+ sizeof(T*) * y);
+		data = (T**)(baseaddr + y * x);
+		for (int i = 0; i < y; i++) data[i] = baseaddr+i*x;
 	}
 	void remove() {
 		if (data != 0) {
-			for (int i = 0; i < y; i++) free(data[i]);
-			free(data);
+			free(data[0]);
 			data = 0;
 		}
 	}
@@ -227,6 +239,7 @@ public:
 		switch (bitdepth) {
 		case 1: {
 			unsigned char* temp = (unsigned char*)malloc(sizeof(unsigned char) * dat.n);
+#pragma omp parallel for
 			for (int i = 0; i < dat.n; i++) {
 				if (dat.arr[i] >= .9921875) temp[i] = 255;
 				else if (dat.arr[i] < -1.) temp[i] = 0;
@@ -239,6 +252,7 @@ public:
 		}
 		case 2: {
 			short* temp = (short*)malloc(sizeof(short) * dat.n);
+#pragma omp parallel for
 			for (int i = 0; i < dat.n; i++) {
 				if (dat.arr[i] >= .9999695) temp[i] = 32767;
 				else if (dat.arr[i] < -1.) temp[i] = -32768;
@@ -252,12 +266,12 @@ public:
 		case 3: {
 			union {char d[4];long i;} uni;
 			char* temp = (char*)malloc(sizeof(char) * 3 * dat.n);
-			
-			for (int i = 0,j=0; j < dat.n; i+=3,j++) {
+#pragma omp parallel for
+			for (int j = 0; j < dat.n; j++) {
 				if (dat.arr[j] >= .999999881) uni.i = 8388607;
 				else if (dat.arr[j] < -1.) uni.i = -8388608;
 				else uni.i= (long)(dat.arr[j] * 8388608.);
-				temp[i] = uni.d[0]; temp[i + 1] = uni.d[1]; temp[i + 2] = uni.d[2];
+				temp[j+j+j] = uni.d[0]; temp[j+j+j + 1] = uni.d[1]; temp[j+j+j + 2] = uni.d[2];
 			}
 			fwrite(ret, 1, 44, f);
 			fwrite(temp, 3, dat.n, f);
@@ -266,6 +280,7 @@ public:
 		}
 		case 4: {
 			long* temp = (long*)malloc(sizeof(long) * dat.n);
+#pragma omp parallel for
 			for (int i = 0; i < dat.n; i++) {
 				if (dat.arr[i] >= .999999999534339) temp[i] = 2147483647;
 				else if (dat.arr[i] < -1.) temp[i] = -2147483648;
@@ -307,7 +322,10 @@ public:
 			fwrite(b1, 1, 12, f);
 			fwrite(&w, 4, 1, f);
 			fwrite(&h, 4, 1, f);
-			fwrite(b2, 1, 28, f);
+			fwrite(b2, 1, 8, f);
+			 filesize = 3 * w * h;
+			fwrite(&filesize, 4, 1, f);
+			fwrite(b2+4, 1, 16, f);
 		}
 		else throw exception("file write failed");
 	}
@@ -358,37 +376,33 @@ public:
 class vocoder {
 public:
 	int n, overlap, shift, shift2,orig_len,len;
+	double dshift, dshift2;
 	double ratio;
-	fftcalc* ft;
 	fftcalc* ft32[32];
 	double* hann2;
-	double sinetable[65536];
+	
 	double in_var=0;
 	image<_Dcomplex> img;
 	
 	image<double> vol, iffttmp,centerfreq;
 	_Dcomplex* dout[32], * dout2[32];
 	doublearray da;
+	double* oold, * old, * now;
+	
 	vocoder(int n, int overlap, double ratio, doublearray input, int corr = 1) {
 		init(n, overlap, ratio);
 		cout << "initialize done" << endl;
 		load(input);
 		cout << "fft done" << endl;
-		img.writebmp("x.bmp");
+		//img.writebmp("x.bmp");
 		modifyphase();
 		cout << "phase correction done" << endl;
 		convert();
-		
 		cout << "ifft done" << endl;
-		
-		preadjustvolume();
-		if (corr > 0) adjustvolume(2, 3,0),cout<<"tunning done"<<endl;
-	
-		if (corr > 1)adjustvolume(1, 2, 1), cout << "tunning done" << endl;
-		for (int i = 2; i < corr; i++) adjustvolume(1, 2, 0), cout << "tunning done" << endl;
+		for (int i = 0; i < corr; i++) adjustvolume(2, (i%2)*2), cout << "tunning done" << endl;
 	}
 	vocoder(double ratio, doublearray input, int corr = 1) :
-		vocoder(4096, (ratio > 1.2) ? 16 : 16, ratio, input, corr) {}
+		vocoder(4096, (ratio > 1.2) ? 10 : 10, ratio, input, corr) {}
 	vocoder(double speed, double pitch, doublearray input, int corr = 1) :
 		vocoder(pitch /  speed, input, corr) {
 		da.memo[0] *= pitch;
@@ -397,25 +411,25 @@ public:
 		this->n = n;
 		this->ratio = ratio;
 		this->overlap = overlap;
-		ft = new fftcalc(n);
-		ft->fft();
+		shift2 = n / overlap;
+		dshift2 = (double)(shift2);
+		dshift = dshift2 / ratio;
+		shift = (int)dshift;
 		for (int i = 0; i < 32; i++) {
 			ft32[i] = new fftcalc(n);
 			ft32[i]->fft();
-		}
-		for (int i = 0; i < 32; i++) ft32[i] = new fftcalc(n);
-		shift2 = n / overlap;
-		shift = (int)((double)shift2 / ratio);
-		for (int i = 0; i < 32; i++) {
 			dout[i] = (_Dcomplex*)malloc(sizeof(_Dcomplex) * n);
 			dout2[i] = (_Dcomplex*)malloc(sizeof(_Dcomplex) * n);
 		}
+		
 		hann2 = (double*)malloc(sizeof(double) * n);
 		for (int i = 0; i < n; i++) {
 			hann2[i] = sin((double)i / n * 3.1415926535898);
-			hann2[i] *= hann2[i]; //hann2[i] *= hann2[i];
+			hann2[i] *= hann2[i]; hann2[i] *= hann2[i];
 		}
-		for (int i = 0; i < 65536; i++) sinetable[i] = sin(6.2831853071795864 / 65536. * (double)i);
+		oold = (double*)malloc(sizeof(double) * n / 2 + 10);
+		old = (double*)malloc(sizeof(double) * n / 2 + 10);
+		now = (double*)malloc(sizeof(double) * n / 2 + 10);
 	}
 	void load(doublearray data) {
 		int y = (data.n + shift - 1) / shift;
@@ -423,17 +437,19 @@ public:
 		img.create(n, y);
 		iffttmp.create(n, y);
 		centerfreq.create(n, y);
-		da.create(y * shift2 + n);
+		da.create((int)((double)y * dshift2) + n);
+		
 		for (int i = 0; i < orig_len; i++) in_var += data.arr[i] * data.arr[i];
 		in_var /= orig_len;
 		for (int i = 0; i < 4; i++) da.getmemo()[i] = data.getmemo()[i];
 		for (int i = 0; i < 32; i++) ft32[i]->fft();
 #pragma omp parallel for num_threads(32)
 		for (int i = 0; i < y; i++) {
-			int ii;
+			int ii,ii2;
 			int threadid = omp_get_thread_num();
+			ii2 = (int)((double)i * dshift) - n;
 			for (int j = 0; j < n; j++) {
-				ii = i * shift + j - n;
+				ii = ii2 + j;
 				if (ii >= data.n || ii < 0) dout[threadid][j]._Val[0] = 0;
 				else dout[threadid][j]._Val[0] = data.arr[ii] *hann2[j];
 				dout[threadid][j]._Val[1] = 0;
@@ -444,88 +460,150 @@ public:
 	image<_Dcomplex>& getimage() {
 		return img;
 	}
+	bool isnear(double upper, double _centerfreq) {
+		if (_centerfreq < 100) {
+			if (_centerfreq < 50) {
+				if (upper - _centerfreq < 4 && _centerfreq - upper < 4) return true;
+			}
+			else {
+				if (upper - _centerfreq < 7 && _centerfreq - upper < 7) return true;
+			}
+		}
+		else {
+			if (_centerfreq < 200) {
+				if (upper - _centerfreq < 12 && _centerfreq - upper < 12)return true;
+			}
+			else {
+				if (upper - _centerfreq < 24 && _centerfreq - upper < 24) return true;
+			}
+		}
+		return false;
+	}
+	int phasewidth(int centl) {
+		if (centl < 25) {
+			if (centl < 10) {
+				if (centl < 6) return 1;
+				else return 2;
+			}
+			else {
+				if (centl < 15) return 3;
+				else return 4;
+			}
+		}
+		else {
+			if (centl < 100) {
+				if (centl < 50) return 6;
+				else return 9;
+			}
+			else {
+				if (centl < 200) return 12;
+				else return 16;
+			}
+		}
+	}
+	int dist(int a, int b) {
+		if (a > b)return a - b;
+		else return b - a;
+	}
 	void modifyphase() {
 		image<double> tt;
 		tt.create(img.x, img.y);
 #pragma omp parallel for num_threads(32)
 		for (int a = 1; a < img.y; a++) {
-			for (int b = 0; b <= n / 2; b++) {
-				tt.data[a][b]=
-					iffttmp.data[a][b] = cabs(img.data[a][b]);
+			for (int b = 0; b < n; b++) {
+				iffttmp.data[a][b] = cabs(img.data[a][b]);
+				tt.data[a][b] = iffttmp.data[a][b];
 			}
 			int le, cent;
-			int ri = -1;
+			int ri = 0;
 			double _centerfreq, _mag;
-			double peak, crit;
+			double peak;
+			int continuity;
+			int cut = 0;
+			int ri_backup;
+			
 			while (1) {
-				le = ri + 1;
+				le = ri;
 				ri = le;
 				cent = le;
 				peak = iffttmp.data[a][le];
-				if(cent>100) crit = peak * 0.2;
-				if (cent > 30) crit = peak * 0.3;
-				else crit = peak * 0.4;
+				continuity = 1;
+				cut = 0;
 				while (1) {
-					if (ri >= n / 2) break;
-					if (peak < iffttmp.data[a][ri]) { peak = iffttmp.data[a][ri]; cent = ri; 
-					if (cent > 100) crit = peak * 0.2;
-					if (cent > 30) crit = peak * 0.3;
-					else crit = peak * 0.4;
+					if (ri > n / 2) break;
+					if (peak < iffttmp.data[a][ri] && !cut) {
+						peak = iffttmp.data[a][ri]; cent = ri;
 					}
-					if (crit < iffttmp.data[a][ri]) ri++;
-					else break;
-
+					if (!ri) ri++;
+					else if (iffttmp.data[a][ri] >= iffttmp.data[a][ri + 1]) {
+						ri_backup = ri + 1;
+						
+							if (ri < 50 && iffttmp.data[a][ri] < 0.8 * peak) cut = 1;
+							else if (ri < 100 && iffttmp.data[a][ri] < 0.7 * peak) cut = 1;
+							else if (ri < 150 && iffttmp.data[a][ri] < 0.7 * peak) cut = 1;
+							else if (ri < 200 && iffttmp.data[a][ri] < 0.65 * peak) cut = 1;
+							else if (iffttmp.data[a][ri] < 0.65 * peak) cut = 1;
+						
+					}
+					else {
+						if (cut && iffttmp.data[a][ri_backup] * 1.1 < iffttmp.data[a][ri]) {
+							ri = ri_backup;
+							break;
+						}
+					}
+					ri++;
 				}
 				int centl, centr;
-				for (centl = le; iffttmp.data[a][centl] < peak * 0.5; centl++);
-				for (centr = ri; iffttmp.data[a][centr] < peak * 0.5; centr--);
-				cent = (centl + centr)>>1;
-				crit = peak * 0.5;
-				_centerfreq = iffttmp.data[a][cent] * (double)cent, _mag = iffttmp.data[a][cent];
+				
+				for (centl = le; iffttmp.data[a][centl] < peak * 0.7; centl++);
+				for (centr = ri; iffttmp.data[a][centr] < peak * 0.7; centr--);
+				cent = (cent+((centl + centr) >> 1))>>1;
+				_centerfreq = iffttmp.data[a][cent] * (double)cent;
+				_mag = iffttmp.data[a][cent];
 				int p = 1;
-				while (cent - p >= le && cent + p <= ri && crit < iffttmp.data[a][cent - p] && crit < iffttmp.data[a][cent + p] && p < 10) {
+				while (cent - p >= le && cent + p <= ri && p < 4) {
 					_centerfreq += iffttmp.data[a][cent + p] * (double)(cent + p) + iffttmp.data[a][cent - p] * (double)(cent - p);
 					_mag += iffttmp.data[a][cent + p] + iffttmp.data[a][cent - p];
 					p++;
 				}
-				
-				_centerfreq /= _mag;
-				
-				//int lo, hi;
-				//lo = (int)_centerfreq;
-				//hi = lo + 1;
-				//double m = iffttmp.data[a][lo] * ((double)hi - _centerfreq) + iffttmp.data[a][hi] * (_centerfreq-(double)lo);
-				//iffttmp.data[a][lo] += m * ((double)hi - _centerfreq);
-				//iffttmp.data[a][hi] += m * (_centerfreq - (double)lo);
+				if (_mag) _centerfreq /= _mag;
+				else _centerfreq = (double)((le + ri) >> 1);
 				for (int i = le; i <= ri; i++) centerfreq.data[a][i] = _centerfreq;
-				if(_centerfreq<n) tt.data[a][(int)_centerfreq] = 1e9;
+				tt.data[a][(int)(_centerfreq+.5)] = 1e9;
 				if (ri >= n / 2) break;
 			}
 		}
-
+	
+		double dn = dshift2 * 3.14159265358979323846 /(double)n;
 #pragma omp parallel for num_threads(32)
-		for (int a = 1; a < img.y; a++) {
-			for (int b = 0; b <= n / 2; b++) {
-				_Dcomplex& imgdataab = img.data[a][b];
-				double base = carg(img.data[a - 1][b]);
-				double tmp2 = (double)shift2 * 6.283185307179586476925286766559 * centerfreq.data[a][b] / (double)n;
-				imgdataab = cexp(_Dcomplex{ 0,(base + tmp2) });
-				imgdataab._Val[0] *= iffttmp.data[a][b];
-				imgdataab._Val[1] *= iffttmp.data[a][b];
+		for (int b = 0; b <= n / 2; b++) {
+			double base = carg(img.data[0][b]);
+			for (int a = 1; a < img.y; a++) {
+				base += dn * (centerfreq.data[a - 1][b] + centerfreq.data[a][b]);
+				img.data[a][b] = cexp(_Dcomplex{ 0,base });
+				if (!(a & 15)) base = carg(img.data[a][b]);
 			}
-			for (int b = n / 2 + 1; b < n; b++) {
+		}
+#pragma omp parallel for num_threads(32)
+		for (int a = 0; a < img.y; a++) {
+			int b = 0;
+			for (; b <= n / 2; b++) {
+				img.data[a][b]._Val[0] *= iffttmp.data[a][b];
+				img.data[a][b]._Val[1] *= iffttmp.data[a][b];
+			}
+			for (; b < n; b++) {
 				img.data[a][b]._Val[0] = img.data[a][n - b]._Val[0];
 				img.data[a][b]._Val[1] = -img.data[a][n - b]._Val[1];
 			}
 		}
-		printf("!");
-		tt.writebmp("1.bmp");
+		tt.writebmp("a.bmp");
 	}
-	void modifyphase_old() {
-		double v1 = 1, v2 = 0;
+	
+	void modifyphase2() {
+		double v1 = 0, v2 = 1;
 		if (ratio > 1) {
-			v1 = 0.95 - cos(ratio * 3.1415926535897932384626433832795) * 0.05;
-			v2 = 0.05 + cos(ratio * 3.1415926535897932384626433832795) * 0.05;
+			//v1 = 0.95 - cos(ratio * 3.1415926535897932384626433832795) * 0.05;
+			//v2 = 0.05 + cos(ratio * 3.1415926535897932384626433832795) * 0.05;
 		}
 #pragma omp parallel for num_threads(32)
 		for (int b = 0; b <= n / 2; b++) {
@@ -535,7 +613,7 @@ public:
 				_Dcomplex& imgdataab = img.data[a][b];
 				double arg1 = carg(imgdataab);
 				double darg = arg1 - op;
-				double tmp2 = (double)shift2 / ratio * 6.283185307179586476925286766559 * ((double)b) / (double)n;
+				double tmp2 = dshift2 / ratio * 6.283185307179586476925286766559 * ((double)b) / (double)n;
 				double darg2 = (double)floor((tmp2 - darg) / 6.283185307179586476925286766559 + 0.5) * 6.283185307179586476925286766559;
 				darg += darg2;
 				double tmp = ratio * (darg * v1 + tmp2 * v2);
@@ -558,11 +636,11 @@ public:
 		
 		for (int i = 0; i < len; i++) da.arr[i] = 0;
 #pragma omp parallel for num_threads(32)
-		for (int i = 0; i < img.y; i++) {
+		for (int i = 0; i < img.y; i+=1) {
 			int threadid = omp_get_thread_num();
 			for (int j = 0; j < n; j++) dout2[threadid][j] = img.data[i][j];
 			(*ft32[threadid])(dout2[threadid], dout[threadid]);
-			int tmp = shift2 * i - n;
+			int tmp = (int)(dshift2 * (double)i) - n;
 			for (int j = 0; j < n; j++) {
 				if (tmp < len) {
 					if (tmp >= 0) 
@@ -638,29 +716,25 @@ public:
 		out_var = sqrt(in_var * len / out_var);
 		for (int i = 0; i < len; i++) da.arr[i] *= out_var;
 	}
-	void preadjustvolume() {
-#pragma omp parallel for num_threads(32)
-		for (int i = 0; i < img.y; i++)
-			for (int j = 0; j < n; j++)
-				iffttmp.data[i][j] = cabs(img.data[i][j]);
-	}
-	void adjustvolume(int xres, int yres,int yshif) {
-		int xf = 1 >> (xres - 1);
+
+	void adjustvolume(int yres,int yshif) {//unused
+		
+		int shift3 = 2*n / overlap;
 		int yf = 1 >> (yres - 1);
 		if (vol.data) {
-			if (vol.x - 2 != n >> xres || vol.y - 2 != img.y >> yres) {
+			if (vol.x - 2 != n  || vol.y - 2 != img.y >> (yres+1)) {
 				vol.remove();
-				vol.create((n >> xres) + 2, (img.y >> yres) + 2);
+				vol.create(n + 2, (img.y >> (yres+1)) + 2);
 			}
 		}
-		else vol.create((n >> xres) + 2, (img.y >> yres) + 2);
+		else vol.create(n  + 2, (img.y >> (yres+1)) + 2);
 		for (int i = 0; i < 32; i++) ft32[i]->fft();
 #pragma omp parallel for num_threads(32)
-		for (int i = 0; i < img.y; i++) {
+		for (int i = 0; i < (img.y>>1); i++) {
 			int ii;
 			int threadid = omp_get_thread_num();
 			for (int j = 0; j < n; j++) {
-				ii = i * shift2 + j - n;
+				ii = i * shift3 + j - n;
 				if (ii >= da.n || ii < 0) dout[threadid][j]._Val[0] = 0;
 				else dout[threadid][j]._Val[0] = da.arr[ii] * hann2[j];
 				dout[threadid][j]._Val[1] = 0;
@@ -668,36 +742,32 @@ public:
 			(*ft32[threadid])(dout[threadid], img.data[i]);
 		}
 #pragma omp parallel for num_threads(32)
-		for (int i = 0; i < vol.x - 1; i++) {
-			for (int j = 0; j < vol.y - 1; j++) {
+		for (int j = 0; j < vol.y - 1; j++) {
+			for (int i = 0; i < vol.x - 1; i++) {
 				double orig_max = 0, fixed_max = 0;
-				for (int k = -xf; k < xf; k++) {
-					int a = (i << xres) + k;
-					if (a >= 0 && a < n) {
-						for (int m = -yf; m < yf; m++) {
-							int b = (j << yres) + m+yshif;
-							if (b >= 0 && b < img.y) {
-								double temp = cabs(img.data[b][a]);
-								if (temp > fixed_max)
-									fixed_max = temp;
-								if (iffttmp.data[b][a] > orig_max)
-									orig_max = iffttmp.data[b][a];
-							}
-						}
+				for (int m = -yf; m < yf; m++) {
+					int b = (j << yres) + m + yshif;
+					if (b >= 0 && b < img.y) {
+						double temp = cabs(img.data[b][i]);
+						if (temp > fixed_max)
+							fixed_max = temp;
+						if (iffttmp.data[b][i] > orig_max)
+							orig_max = iffttmp.data[b<<1][i];
 					}
 				}
 				vol.data[j][i] = ((1e-8 + orig_max) / (1e-8 + fixed_max));
-				
 			}
-			vol.data[vol.y - 1][i] = vol.data[vol.y - 2][i];
+			
 		}
+		for (int i = 0; i < vol.x - 1; i++)
+			vol.data[vol.y - 1][i] = vol.data[vol.y - 2][i];
 		for (int i = 0; i < vol.y; i++)
 			vol.data[i][vol.x - 1] = vol.data[i][vol.x - 2];
 		for (int i = 0; i < 32; i++) ft32[i]->ifft();
 		
 		for (int i = 0; i < len; i++) da.arr[i] = 0;
 #pragma omp parallel for num_threads(32)
-		for (int i = 0; i < img.y; i++) {
+		for (int i = 0; i < (img.y>>1); i++) {
 			int threadid = omp_get_thread_num();
 			int vy = i >> 3;
 			double ry = (double)i / 8. - (double)vy;
@@ -714,7 +784,7 @@ public:
 			(*ft32[threadid])(dout2[threadid], dout[threadid]);
 #pragma omp critical			
 			for (int j = 0; j < n; j++) {
-				int tmp = shift2 * i - n + j;
+				int tmp = shift3 * i - n + j;
 				if (tmp < len && tmp >= 0) da.arr[tmp] += hann2[j] * dout[threadid][j]._Val[0];
 			}
 		}
@@ -724,18 +794,19 @@ public:
 		for (int i = 0; i < len; i++) da.arr[i] *= out_var;
 	}
 	virtual ~vocoder() {
+		
 		for (int i = 0; i < 32; i++) {
 			delete ft32[i];
 			free(dout[i]);
 			free(dout2[i]);
 		}
-		delete ft;
+		free(oold); free(old); free(now);
 		free(hann2);
-		if (img.data != 0) img.remove();
-		if (vol.data != 0) vol.remove();
-		if (iffttmp.data != 0) iffttmp.remove();
-		if (centerfreq.data != 0) centerfreq.remove();
-		if (da.arr != 0) da.remove();
+		img.remove();
+		vol.remove();
+		iffttmp.remove();
+		centerfreq.remove();
+		da.remove();
 	}
 	operator doublearray() const {
 		return da;
@@ -743,5 +814,7 @@ public:
 };
 
 void main(int argc, char* argv[]) {
-	wavwriter(argv[2], vocoder(atof(argv[3]), atof(argv[4]), wavreader(argv[1]), 3));
+	unsigned int t = GetTickCount();
+	wavwriter(argv[2], vocoder(atof(argv[3]), atof(argv[4]), wavreader(argv[1]), 0));
+	printf("%d", GetTickCount() - t);
 }
