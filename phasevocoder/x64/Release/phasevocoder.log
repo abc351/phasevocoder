@@ -2,10 +2,18 @@
 C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(295,1): warning C4297: 'wavwriter::~wavwriter': 함수는 예외를 Throw하지 않도록 지정되었으나 예외를 Throw했습니다.
 C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(295,1): message : 소멸자 또는 비할당자는 가능하면 암시적으로 throw되지 않는 예외 사양을 사용합니다.
 C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(408,1): warning C4244: '*=': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(816,35): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'void'입니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,29): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,16): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,62): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,49): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,96): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,83): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,129): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(632,116): warning C4244: '인수': 'double'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\dhkim\source\repos\phasevocoder\phasevocoder\소스.cpp(914,35): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'void'입니다.
   코드를 생성하고 있습니다.
-  4 of 66 functions ( 6.1%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    2 functions had inline decision re-evaluated but remain unchanged
+  14 of 71 functions (19.7%) were compiled, the rest were copied from previous compilation.
+    3 functions were new in current compilation
+    1 functions had inline decision re-evaluated but remain unchanged
   코드를 생성했습니다.
   phasevocoder.vcxproj -> C:\Users\dhkim\source\repos\phasevocoder\x64\Release\phasevocoder.exe

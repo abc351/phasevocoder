@@ -573,7 +573,105 @@ public:
 				if (ri >= n / 2) break;
 			}
 		}
-	
+#pragma omp parallel for
+		for (int b = 0; b <= n / 2; b++) {
+			old[b] = centerfreq.data[0][b];
+			now[b] = centerfreq.data[1][b];
+		}
+		for (int a = 2; a < img.y - 2; a++) {
+			double* tmp;
+			tmp = oold;
+			oold = old; old = now; now = tmp;
+			for (int b = 0; b <= n / 2; b++) {
+				now[b] = centerfreq.data[a][b];
+			}
+			for (int b = 0; b < n / 2;) {
+				double centerfreq2o, centerfreq0, centerfreq1, centerfreq2, centerfreq3, centerfreq4;
+				int centerfreq_int;
+				centerfreq2o = now[b];
+				centerfreq2 = centerfreq2o;
+				centerfreq_int = (int)(centerfreq2 + .5);
+				double centerfreq0_mag = 0, centerfreq1_mag = 0, centerfreq3_mag = 0, centerfreq4_mag = 0;
+				for (int i = centerfreq_int - phasewidth(centerfreq_int); i < centerfreq_int + phasewidth(centerfreq_int); i += 2) {
+					if (i >= 0 && i <= n / 2) {
+						double weight = 1 / (1 + (double)dist(i, centerfreq_int));
+						if (iffttmp.data[a - 2][(int)(oold[i] + .5)] * weight > centerfreq0_mag) {
+							centerfreq0 = oold[i];
+							centerfreq0_mag = iffttmp.data[a - 2][(int)(oold[i] + .5)];
+						}
+						if (iffttmp.data[a - 1][(int)(old[i] + .5)] * weight > centerfreq1_mag) {
+							centerfreq1 = old[i];
+							centerfreq1_mag = iffttmp.data[a - 1][(int)(old[i] + .5)];
+						}
+						if (iffttmp.data[a + 1][(int)(centerfreq.data[a + 1][i] + .5)] * weight > centerfreq3_mag) {
+							centerfreq3 = centerfreq.data[a + 1][i];
+							centerfreq3_mag = iffttmp.data[a + 1][(int)(centerfreq.data[a + 1][i] + .5)];
+						}
+						if (iffttmp.data[a + 2][(int)(centerfreq.data[a + 2][i] + .5)] * weight > centerfreq4_mag) {
+							centerfreq4 = centerfreq.data[a + 2][i];
+							centerfreq4_mag = iffttmp.data[a + 2][(int)(centerfreq.data[a + 2][i] + .5)];
+						}
+					}
+
+				}
+				if (!isnear(centerfreq0, centerfreq1)) {
+					if (isnear(centerfreq0, centerfreq2)) {
+						double p = (centerfreq0 + centerfreq2) / 2;
+						int pint = (int)(p + 0.5);
+						for (int t = pint - phasewidth(pint); t <= pint + phasewidth(pint); t++)
+							if (t >= 0 && t <= n / 2) centerfreq.data[a - 1][t] = p;
+					}
+
+					centerfreq0 = centerfreq1;
+				}
+				if (!isnear(centerfreq3, centerfreq4)) {
+					centerfreq4 = centerfreq3;
+				}
+				if (isnear(centerfreq1, centerfreq2)) {
+					if (isnear(centerfreq2, centerfreq3)) {
+						if (dist(centerfreq1, centerfreq2) > dist(centerfreq1, centerfreq3) && dist(centerfreq2, centerfreq3) > dist(centerfreq1, centerfreq3))
+							centerfreq2 = 0.1 * centerfreq0 + 0.4 * centerfreq1 + 0.4 * centerfreq3 + 0.1 * centerfreq4;
+						else centerfreq2 = 0.1 * centerfreq0 + 0.2 * centerfreq1 + 0.4 * centerfreq2 + 0.2 * centerfreq3 + 0.1 * centerfreq4;
+
+						centerfreq_int = (int)(centerfreq2 + .5);
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int - phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = (double)b;
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int + phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = centerfreq2;
+						for (; centerfreq.data[a][b] == centerfreq2o; b++) centerfreq.data[a][b] = (double)b;
+					}
+					else {
+						centerfreq2 = 0.2 * centerfreq0 + 0.4 * centerfreq1 + 0.4 * centerfreq2;
+						centerfreq_int = (int)(centerfreq2 + .5);
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int - phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = (double)b;
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int + phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = centerfreq2;
+						for (; centerfreq.data[a][b] == centerfreq2o; b++) centerfreq.data[a][b] = (double)b;
+					}
+				}
+				else {
+					if (isnear(centerfreq2, centerfreq3)) {
+						centerfreq2 = 0.4 * centerfreq2 + 0.4 * centerfreq3 + 0.2 * centerfreq4;
+						centerfreq_int = (int)(centerfreq2 + .5);
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int - phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = (double)b;
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int + phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = centerfreq2;
+						for (; centerfreq.data[a][b] == centerfreq2o; b++) centerfreq.data[a][b] = (double)b;
+					}
+					else {
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int - phasewidth(centerfreq_int); b++) centerfreq.data[a][b] = (double)b;
+						for (; centerfreq.data[a][b] == centerfreq2o &&
+							b < centerfreq_int + phasewidth(centerfreq_int); b++);
+						for (; centerfreq.data[a][b] == centerfreq2o; b++) centerfreq.data[a][b] = (double)b;
+
+					}
+				}
+			}
+		}
+
 		double dn = dshift2 * 3.14159265358979323846 /(double)n;
 #pragma omp parallel for num_threads(32)
 		for (int b = 0; b <= n / 2; b++) {
@@ -596,7 +694,7 @@ public:
 				img.data[a][b]._Val[1] = -img.data[a][n - b]._Val[1];
 			}
 		}
-		tt.writebmp("a.bmp");
+		//tt.writebmp("a.bmp");
 	}
 	
 	void modifyphase2() {
