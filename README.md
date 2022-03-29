@@ -1,3 +1,3 @@
 # phasevocoder
 argument:
-lft.exe [inputfile] [outputfile] [ratio]
+phasevocoder.exe [inputfile] [outputfile] [speed] [pitch]
